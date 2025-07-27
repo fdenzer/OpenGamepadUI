@@ -51,6 +51,10 @@ jobs:
         run: |
           make extensions-mac
           make build-mac
+      - name: Build for Windows
+        run: |
+          make extensions-windows
+          make build-windows
 
       # In ".releaserc.yaml" a step is defined to write the release version to
       # ".version.txt" upon successful release. This step checks to see if that
@@ -143,3 +147,28 @@ jobs:
           git add .SRCINFO PKGBUILD
           git commit -m "Update to $(grep '^pkgver=' PKGBUILD | cut -d'=' -f2)"
           git push origin master
+
+  build-windows:
+    name: 🏁 Build for Windows
+    needs: release
+    if: needs.release.outputs.should_publish == 'yes'
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: "20"
+
+      - name: Install Dependencies
+        run: npm install @semantic-release/exec @google/semantic-release-replace-plugin @semantic-release/git
+
+      - name: Build for Windows
+        run: |
+          make extensions-windows
+          make build-windows

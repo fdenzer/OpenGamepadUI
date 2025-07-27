@@ -11,19 +11,26 @@ GAMESCOPE ?= gamescope
 GAMESCOPE_CMD ?= $(GAMESCOPE) -e --xwayland-count 2 --
 BUILD_TYPE ?= release
 
-EXPORT_TEMPLATE ?= $(HOME)/.local/share/godot/export_templates/$(GODOT_REVISION)/linux_$(BUILD_TYPE).x86_64
 #EXPORT_TEMPLATE_URL ?= https://downloads.tuxfamily.org/godotengine/$(GODOT_VERSION)/Godot_v$(GODOT_VERSION)-$(GODOT_RELEASE)_export_templates.tpz
 EXPORT_TEMPLATE_URL ?= https://github.com/godotengine/godot/releases/download/$(GODOT_VERSION)-$(GODOT_RELEASE)/Godot_v$(GODOT_VERSION)-$(GODOT_RELEASE)_export_templates.tpz
 
-ALL_EXTENSIONS_LINUX := ./addons/core/bin/libopengamepadui-core.linux.template_$(BUILD_TYPE).x86_64.so
-ALL_EXTENSIONS_MAC_ARM := ./addons/core/bin/libopengamepadui-core.macos.template_$(BUILD_TYPE).arm64.dylib
-ALL_EXTENSIONS_MAC_X86 := ./addons/core/bin/libopengamepadui-core.macos.template_$(BUILD_TYPE).x86_64.dylib
-ALL_EXTENSIONS := $(ALL_EXTENSIONS_LINUX) $(ALL_EXTENSIONS_MAC)
 ALL_EXTENSION_FILES := $(shell find ./extensions/ -regex  '.*\(\.rs|\.toml\|\.lock\)$$')
 ALL_GDSCRIPT := $(shell find ./ -name '*.gd')
 ALL_SCENES := $(shell find ./ -name '*.tscn')
 ALL_RESOURCES := $(shell find ./ -regex  '.*\(\.tres\|\.svg\|\.png\)$$')
 PROJECT_FILES := $(ALL_EXTENSIONS) $(ALL_GDSCRIPT) $(ALL_SCENES) $(ALL_RESOURCES)
+
+# Include build files
+-include build/build.mk
+
+# Include platform specific build files
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+-include build/linux.mk
+endif
+ifeq ($(UNAME_S),Darwin)
+-include build/macos.mk
+endif
 
 # Docker image variables
 IMAGE_NAME ?= ghcr.io/shadowblip/opengamepadui-builder
@@ -110,19 +117,6 @@ test: $(IMPORT_DIR) ## Run all unit tests
 		--path $(PWD) $(HEADLESS) \
 		--script res://addons/gut/gut_cmdln.gd
 
-.PHONY: build
-build: build/opengamepad-ui.x86_64 ## Build and export the project
-build/opengamepad-ui.x86_64: $(IMPORT_DIR) $(PROJECT_FILES) $(EXPORT_TEMPLATE)
-	@echo "Building OpenGamepadUI v$(OGUI_VERSION)"
-	mkdir -p build
-	$(GODOT) -v --headless --export-$(BUILD_TYPE) "Linux/X11"
-
-.PHONY: build-mac
-build-mac: build/OpenGamepadUI.dmg ## Build and export the project for mac
-build/OpenGamepadUI.dmg: $(IMPORT_DIR) $(PROJECT_FILES) $(EXPORT_TEMPLATE)
-	@echo "Building OpenGamepadUI v$(OGUI_VERSION) for MacOS"
-	mkdir -p build
-	$(GODOT) -v --headless --export-$(BUILD_TYPE) "Mac OSX"
 
 .PHONY: metadata
 metadata: build/metadata.json ## Build update metadata
@@ -167,20 +161,6 @@ force-import: $(ALL_EXTENSIONS)
 	$(GODOT) --headless --import > /dev/null 2>&1 || echo "Finished"
 	$(GODOT) --headless --import > /dev/null 2>&1 || echo "Finished"
 
-.PHONY: extensions
-extensions: $(ALL_EXTENSIONS_LINUX) ## Build engine extensions
-$(ALL_EXTENSIONS_LINUX) &: $(ALL_EXTENSION_FILES)
-	@echo "Building linux engine extensions..."
-	cd ./extensions && $(MAKE) build
-
-.PHONY: extensions-mac
-extensions-mac: $(ALL_EXTENSIONS_MAC_ARM) $(ALL_EXTENSIONS_MAC_X86) ## Build mac engine extensions
-$(ALL_EXTENSIONS_MAC_ARM) &: $(ALL_EXTENSION_FILES)
-	@echo "Building mac engine extensions..."
-	cd ./extensions && $(MAKE) build-mac
-$(ALL_EXTENSIONS_MAC_X86) &: $(ALL_EXTENSION_FILES)
-	@echo "Building mac engine extensions..."
-	cd ./extensions && $(MAKE) build-mac
 
 .PHONY: edit
 edit: $(IMPORT_DIR) ## Open the project in the Godot editor

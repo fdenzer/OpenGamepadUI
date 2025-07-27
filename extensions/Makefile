@@ -9,6 +9,8 @@ RELEASE_TARGET_MAC_ARM := $(ADDON_PATH)/bin/lib$(EXT_NAME).macos.template_releas
 DEBUG_TARGET_MAC_ARM := $(ADDON_PATH)/bin/lib$(EXT_NAME).macos.template_debug.arm64.dylib
 RELEASE_TARGET_MAC_X86 := $(ADDON_PATH)/bin/lib$(EXT_NAME).macos.template_release.x86_64.dylib
 DEBUG_TARGET_MAC_X86 := $(ADDON_PATH)/bin/lib$(EXT_NAME).macos.template_debug.x86_64.dylib
+RELEASE_TARGET_WINDOWS := $(ADDON_PATH)/bin/lib$(EXT_NAME).windows.template_release.x86_64.dll
+DEBUG_TARGET_WINDOWS := $(ADDON_PATH)/bin/lib$(EXT_NAME).windows.template_debug.x86_64.dll
 
 ##@ General
 
@@ -34,6 +36,9 @@ build: $(RELEASE_TARGET_LINUX) $(DEBUG_TARGET_LINUX) ## Build release and debug 
 
 .PHONY: build-mac
 build-mac: $(RELEASE_TARGET_MAC_ARM) $(DEBUG_TARGET_MAC_ARM) $(RELEASE_TARGET_MAC_X86) $(DEBUG_TARGET_MAC_X86) ## Build macos binaries
+
+.PHONY: build-windows
+build-windows: $(RELEASE_TARGET_WINDOWS) $(DEBUG_TARGET_WINDOWS) ## Build windows binaries
 
 
 .PHONY: clean
@@ -88,3 +93,19 @@ $(DEBUG_TARGET_MAC_X86): $(ALL_RS)
 	cargo build --target=x86_64-apple-darwin
 	mkdir -p $(@D)
 	cp target/x86_64-apple-darwin/debug/lib$(LIB_NAME).dylib $@
+
+
+.PHONY: release-windows
+release-windows: $(RELEASE_TARGET_WINDOWS) ## Build windows release binary
+$(RELEASE_TARGET_WINDOWS): $(ALL_RS)
+	cargo build --release --target=x86_64-pc-windows-msvc
+	mkdir -p $(@D)
+	cp target/x86_64-pc-windows-msvc/release/lib$(LIB_NAME).dll $@
+
+
+.PHONY: debug-windows
+debug-windows: $(DEBUG_TARGET_WINDOWS) ## Build windows binary with debug symbols
+$(DEBUG_TARGET_WINDOWS): $(ALL_RS)
+	cargo build --target=x86_64-pc-windows-msvc
+	mkdir -p $(@D)
+	cp target/x86_64-pc-windows-msvc/debug/lib$(LIB_NAME).dll $@
