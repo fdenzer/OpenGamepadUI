@@ -11,16 +11,26 @@ GAMESCOPE ?= gamescope
 GAMESCOPE_CMD ?= $(GAMESCOPE) -e --xwayland-count 2 --
 BUILD_TYPE ?= release
 
-EXPORT_TEMPLATE ?= $(HOME)/.local/share/godot/export_templates/$(GODOT_REVISION)/linux_$(BUILD_TYPE).x86_64
 #EXPORT_TEMPLATE_URL ?= https://downloads.tuxfamily.org/godotengine/$(GODOT_VERSION)/Godot_v$(GODOT_VERSION)-$(GODOT_RELEASE)_export_templates.tpz
 EXPORT_TEMPLATE_URL ?= https://github.com/godotengine/godot/releases/download/$(GODOT_VERSION)-$(GODOT_RELEASE)/Godot_v$(GODOT_VERSION)-$(GODOT_RELEASE)_export_templates.tpz
 
-ALL_EXTENSIONS := ./addons/core/bin/libopengamepadui-core.linux.template_$(BUILD_TYPE).x86_64.so
 ALL_EXTENSION_FILES := $(shell find ./extensions/ -regex  '.*\(\.rs|\.toml\|\.lock\)$$')
 ALL_GDSCRIPT := $(shell find ./ -name '*.gd')
 ALL_SCENES := $(shell find ./ -name '*.tscn')
 ALL_RESOURCES := $(shell find ./ -regex  '.*\(\.tres\|\.svg\|\.png\)$$')
 PROJECT_FILES := $(ALL_EXTENSIONS) $(ALL_GDSCRIPT) $(ALL_SCENES) $(ALL_RESOURCES)
+
+# Include build files
+-include build/build.mk
+
+# Include platform specific build files
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+-include build/linux.mk
+endif
+ifeq ($(UNAME_S),Darwin)
+-include build/macos.mk
+endif
 
 # Docker image variables
 IMAGE_NAME ?= ghcr.io/shadowblip/opengamepadui-builder
@@ -107,12 +117,6 @@ test: $(IMPORT_DIR) ## Run all unit tests
 		--path $(PWD) $(HEADLESS) \
 		--script res://addons/gut/gut_cmdln.gd
 
-.PHONY: build
-build: build/opengamepad-ui.x86_64 ## Build and export the project
-build/opengamepad-ui.x86_64: $(IMPORT_DIR) $(PROJECT_FILES) $(EXPORT_TEMPLATE)
-	@echo "Building OpenGamepadUI v$(OGUI_VERSION)"
-	mkdir -p build
-	$(GODOT) -v --headless --export-$(BUILD_TYPE) "Linux/X11"
 
 .PHONY: metadata
 metadata: build/metadata.json ## Build update metadata
@@ -157,11 +161,6 @@ force-import: $(ALL_EXTENSIONS)
 	$(GODOT) --headless --import > /dev/null 2>&1 || echo "Finished"
 	$(GODOT) --headless --import > /dev/null 2>&1 || echo "Finished"
 
-.PHONY: extensions
-extensions: $(ALL_EXTENSIONS) ## Build engine extensions
-$(ALL_EXTENSIONS) &: $(ALL_EXTENSION_FILES)
-	@echo "Building engine extensions..."
-	cd ./extensions && $(MAKE) build
 
 .PHONY: edit
 edit: $(IMPORT_DIR) ## Open the project in the Godot editor
@@ -461,6 +460,18 @@ release: ## Publish a release with semantic release
 # E.g. make in-docker TARGET=build
 .PHONY: in-docker
 in-docker:
+	@# Run the given make target inside Docker
+	docker run --rm \
+		-v $(PWD):/src \
+		--workdir /src \
+		-e HOME=/home/build \
+		-e PWD=/src \
+		--user $(shell id -u):$(shell id -g) \
+		$(IMAGE_NAME):$(IMAGE_TAG) \
+		make GODOT=/usr/sbin/godot $(TARGET)
+
+.PHONY: in-docker-mac
+in-docker-mac:
 	@# Run the given make target inside Docker
 	docker run --rm \
 		-v $(PWD):/src \
